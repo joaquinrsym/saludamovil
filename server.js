@@ -6,23 +6,31 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-const usuarios = new Set();
+const usuarios = new Map();
+const mensajes = new Map();
 
 io.on('connection', (socket) => {
   console.log('Nuevo usuario conectado');
 
   socket.on('nuevo_usuario', (nombre) => {
-    usuarios.add(nombre);
-    socket.username = nombre;
-    io.emit('usuarios_conectados', Array.from(usuarios));
+    usuarios.set(socket.id, nombre);
+    io.emit('usuarios_conectados', Array.from(usuarios.values()));
+    console.log(`Usuario ${nombre} conectado con ID ${socket.id}`);
   });
 
   socket.on('enviar_saludo', ({ destinatario, mensaje }) => {
-    const destinatarioSocket = Object.values(io.sockets.sockets).find(
-      (s) => s.username === destinatario
-    );
-    if (destinatarioSocket) {
-      destinatarioSocket.emit('recibir_saludo', mensaje);
+    const destinatarioId = Array.from(usuarios.entries())
+      .find(([_, nombre]) => nombre === destinatario)?.[0];
+    console.log(destinatarioId)
+    if (destinatarioId) {
+      if (!mensajes.has(destinatarioId)) {
+        mensajes.set(destinatarioId, []);
+      }
+      mensajes.get(destinatarioId).push(mensaje);
+      io.to(destinatarioId).emit('recibir_saludo');
+      console.log(`Saludo enviado a ${destinatario}: ${mensaje}`);
+    } else {
+      console.log(`Destinatario ${destinatario} no encontrado`);
     }
   });
 
